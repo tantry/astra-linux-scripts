@@ -1,7 +1,10 @@
 #!/bin/bash
 # ~/third-party-manager.sh
 # Third-Party Software Manager for Astra Linux SE 1.8
-# Original workflow: search → install directly (no extra menu)
+# Features:
+# - Automatic cache population on first run
+# - Safety check before install/upgrade (detects removal of critical packages)
+# - Clear cache option
 
 # Colors
 RED='\033[0;31m'
@@ -10,7 +13,78 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Function to check and populate cache if needed
+# Critical packages that should never be removed (Astra system core)
+CRITICAL_PACKAGES=("astra" "fly" "parsec" "dbus" "linux-image" "systemd" "apt")
+
+# Function: safety check before install/upgrade
+safety_check() {
+    local action=$1
+    local pkg_name=$2
+    local sim_log=$(mktemp)
+
+    echo -e "${YELLOW}[!] Performing safety simulation (${action})...${NC}"
+    
+    if [[ "$action" == "install" ]]; then
+        sudo apt install --dry-run "$pkg_name" > "$sim_log" 2>&1
+    elif [[ "$action" == "upgrade-all" ]]; then
+        sudo apt upgrade --dry-run > "$sim_log" 2>&1
+    elif [[ "$action" == "upgrade-single" ]]; then
+        sudo apt install --only-upgrade --dry-run "$pkg_name" > "$sim_log" 2>&1
+    else
+        rm "$sim_log"
+        return 0
+    fi
+
+    # Count removals
+    local removals=$(grep -c "^Remv" "$sim_log")
+    
+    # Check if any critical package is marked for removal
+    local critical_removals=false
+    for critical_pkg in "${CRITICAL_PACKAGES[@]}"; do
+        if grep -q "^Remv.*$critical_pkg" "$sim_log"; then
+            critical_removals=true
+            break
+        fi
+    done
+
+    # If no removals, safe to proceed
+    if [[ "$removals" -eq 0 ]]; then
+        echo -e "${GREEN}[✓] Safety check passed. No packages will be removed.${NC}"
+        rm "$sim_log"
+        return 0
+    fi
+
+    # If there are removals, warn the user
+    echo -e "${RED}[!] WARNING: This operation will REMOVE $removals package(s).${NC}"
+    
+    if [[ "$critical_removals" == "true" ]]; then
+        echo -e "${RED}[!] CRITICAL: An Astra/Fly system package is marked for removal!${NC}"
+        echo -e "${RED}[!] This installation/upgrade is likely UNSAFE and may break your system.${NC}"
+        echo -e "${YELLOW}Press Enter to see which critical packages will be removed...${NC}"
+        read
+        grep -E "^Remv.*($(IFS=\|; echo "${CRITICAL_PACKAGES[*]}"))" "$sim_log"
+        echo -e "${RED}Operation aborted. No changes were made.${NC}"
+        rm "$sim_log"
+        return 1
+    fi
+
+    # Non-critical removals – ask for confirmation
+    echo -e "${YELLOW}Press Enter to see all packages that will be removed...${NC}"
+    read
+    grep "^Remv" "$sim_log"
+    echo -e "${YELLOW}Do you still want to proceed? (y/N)${NC}"
+    read confirm_remove
+    if [[ ! "$confirm_remove" =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}[✓] Action cancelled.${NC}"
+        rm "$sim_log"
+        return 1
+    fi
+
+    rm "$sim_log"
+    return 0
+}
+
+# Function: check and populate APT cache if needed
 check_and_populate_cache() {
     if ls /var/lib/apt/lists/*deb.debian.org* 2>/dev/null | grep -q "InRelease"; then
         echo -e "${GREEN}✓ APT cache already populated.${NC}"
@@ -41,17 +115,17 @@ check_and_populate_cache() {
     fi
 }
 
-# Function to clear the cache
+# Function: clear third-party cache
 clear_cache() {
     echo -e "${YELLOW}Clearing third-party APT cache...${NC}"
-    CACHE_COUNT=$(ls /var/lib/apt/lists/*deb.debian.org* 2>/dev/null | wc -l)
+    local cache_count=$(ls /var/lib/apt/lists/*deb.debian.org* 2>/dev/null | wc -l)
     
-    if [ "$CACHE_COUNT" -eq 0 ]; then
+    if [ "$cache_count" -eq 0 ]; then
         echo -e "${GREEN}✓ No third-party cache files found. Nothing to clear.${NC}"
         return
     fi
     
-    echo -e "${YELLOW}  → Removing $CACHE_COUNT cache files...${NC}"
+    echo -e "${YELLOW}  → Removing $cache_count cache files...${NC}"
     sudo rm -f /var/lib/apt/lists/*deb.debian.org* 2>/dev/null
     sudo rm -f /var/lib/apt/lists/dl.google.com* 2>/dev/null
     
@@ -88,7 +162,7 @@ while true; do
     echo "========================================"
     echo "1) Update all third-party software"
     echo "2) Install new third-party software"
-    echo "3) Search for software"
+    echo "3) Search for software (read-only)"
     echo "4) Update specific package"
     echo "5) List installed third-party packages"
     echo "6) Clear third-party cache (optional)"
@@ -101,12 +175,19 @@ while true; do
             enable_repos
             echo -e "${BLUE}Checking for updates...${NC}"
             apt list --upgradable 2>/dev/null | head -20
-            read -p "Proceed with upgrade? (y/n): " confirm
-            if [[ $confirm == "y" || $confirm == "Y" ]]; then
-                sudo apt upgrade --only-upgrade -y
-                echo -e "${GREEN}✓ Update complete!${NC}"
+            
+            # Safety check before upgrade
+            safety_check "upgrade-all"
+            if [ $? -eq 0 ]; then
+                read -p "Proceed with upgrade? (y/n): " confirm
+                if [[ $confirm == "y" || $confirm == "Y" ]]; then
+                    sudo apt upgrade --only-upgrade -y
+                    echo -e "${GREEN}✓ Update complete!${NC}"
+                else
+                    echo -e "${YELLOW}Update cancelled${NC}"
+                fi
             else
-                echo -e "${YELLOW}Update cancelled${NC}"
+                echo -e "${RED}Upgrade aborted due to safety concerns.${NC}"
             fi
             disable_repos
             ;;
@@ -118,10 +199,18 @@ while true; do
             echo ""
             read -p "Exact package name to install (or Enter to skip): " pkg
             if [[ -n "$pkg" ]]; then
-                read -p "Install $pkg? (y/n): " confirm
-                if [[ $confirm == "y" || $confirm == "Y" ]]; then
-                    sudo apt install "$pkg" -y
-                    echo -e "${GREEN}✓ Installation complete!${NC}"
+                # Safety check before installation
+                safety_check "install" "$pkg"
+                if [ $? -eq 0 ]; then
+                    read -p "Install $pkg? (y/n): " confirm
+                    if [[ $confirm == "y" || $confirm == "Y" ]]; then
+                        sudo apt install "$pkg" -y
+                        echo -e "${GREEN}✓ Installation complete!${NC}"
+                    else
+                        echo -e "${YELLOW}Installation cancelled${NC}"
+                    fi
+                else
+                    echo -e "${RED}Installation aborted due to safety concerns.${NC}"
                 fi
             fi
             disable_repos
@@ -141,10 +230,18 @@ while true; do
             echo ""
             read -p "Package name to update: " pkg
             if [[ -n "$pkg" ]]; then
-                read -p "Update $pkg? (y/n): " confirm
-                if [[ $confirm == "y" || $confirm == "Y" ]]; then
-                    sudo apt install --only-upgrade "$pkg" -y
-                    echo -e "${GREEN}✓ Update complete!${NC}"
+                # Safety check before single package update
+                safety_check "upgrade-single" "$pkg"
+                if [ $? -eq 0 ]; then
+                    read -p "Update $pkg? (y/n): " confirm
+                    if [[ $confirm == "y" || $confirm == "Y" ]]; then
+                        sudo apt install --only-upgrade "$pkg" -y
+                        echo -e "${GREEN}✓ Update complete!${NC}"
+                    else
+                        echo -e "${YELLOW}Update cancelled${NC}"
+                    fi
+                else
+                    echo -e "${RED}Update aborted due to safety concerns.${NC}"
                 fi
             fi
             disable_repos

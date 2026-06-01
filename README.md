@@ -1,4 +1,3 @@
-```markdown
 # Linux Tools & Scripts (including Astra Linux Special Edition)
 
 A collection of scripts and documentation for:
@@ -107,5 +106,4 @@ Feel free to open issues or pull requests for improvements, additional scripts, 
 ## 📜 License
 
 These scripts are provided as-is, without warranty. You may use, modify, and distribute them freely.
-```
 

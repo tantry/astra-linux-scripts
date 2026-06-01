@@ -1,10 +1,17 @@
-# Astra Linux Tools & Scripts
+```markdown
+# Linux Tools & Scripts (including Astra Linux Special Edition)
 
-This repository contains scripts and tools for managing Astra Linux Special Edition, focusing on safe handling of third‑party repositories (Debian Bookworm, Google Chrome) and reliable system upgrades using local ISO files.
+A collection of scripts and documentation for:
+
+- **Astra Linux Special Edition** – safe third‑party repository management, ISO‑based upgrades, and system maintenance.
+- **General Linux audio processing** – split FLAC+CUE to tagged AAC, loudness normalization with EBU R128.
+- **Hardware fixes** – disable Surface Pro touchscreen when needed.
+
+All scripts are tested on Debian‑based distributions (Astra, Ubuntu) and Arch‑based (Manjaro).
 
 ## 📖 Full Documentation & Guides
 
-For detailed instructions and background, please refer to the following blog posts:
+Detailed background and step‑by‑step instructions are available on the blog:
 
 1. **[Astra Linux Special Edition 1.8 – Installation and Setup Guide](https://bushgrad.blogspot.com/2026/04/astra-linux-common-edition.html)**  
    *Initial installation, local repository setup, and basic configuration.*
@@ -17,26 +24,88 @@ For detailed instructions and background, please refer to the following blog pos
 
 ## 📁 Repository Contents
 
-- `third-party-manager.sh` – Multi‑language (EN/RU/DE/FR/KO) script to safely enable, install/update, and disable third‑party repositories.  
-  *Includes automatic cache population on first run, dry‑run safety checks, and detection of critical Astra system packages.*
+### 🐧 Astra Linux System Tools
 
-*(Additional scripts may be added as needed.)*
+| File | Description |
+|------|-------------|
+| `third-party-manager.sh` | Multi‑language (EN/RU/DE/FR/KO) script to safely enable, install/update, and disable third‑party repositories. Includes automatic cache population, dry‑run safety checks, and detection of critical Astra system packages. |
 
-## ⚠️ Important Notes
+### 🎵 Audio Processing
 
-- These tools are designed and tested on **Astra Linux Special Edition** with **local ISO repositories** (`file://`).  
-- The official `astra-update` tool does **not** work reliably with local ISOs – use standard `apt` commands instead.  
-- Always keep third‑party repository files outside `/etc/apt/sources.list.d/` unless actively using them (the script does this automatically).  
-- The script includes built‑in safety checks that will abort any installation that would remove critical Astra packages (`astra-*`, `fly-*`, `parsec`, etc.).
+| File | Description |
+|------|-------------|
+| `cue2aac_atomic.sh` | Convert a single FLAC + CUE album into individual AAC (`.m4a`) tracks with embedded metadata (title, artist, album, track number, year, genre) and filenames like `01 - Song Title.m4a`. Handles leading zeros (`08`, `09`) correctly. |
+| `cue2aac_atomic.md` | Full documentation for the FLAC‑to‑AAC splitter – dependencies, usage, troubleshooting, and alternative tools. |
+| `normalize.sh` | One‑pass loudness normalization for `.m4a` files using FFmpeg’s EBU R128 loudnorm filter (target: `-16 LUFS`, `-1.5 dBTP`, `LRA 11`). Creates `normalized_*.m4a` files. |
+| `normalize_two_pass.sh` | Two‑pass normalization method (extract audio first) – more accurate for short tracks. |
+| `normalize.md` | Documentation for both normalization scripts: customisation, batch processing other formats (MP3, FLAC), troubleshooting. |
+
+### 💻 Hardware Fixes
+
+| File | Description |
+|------|-------------|
+| `SurfacePro_fixes.md` | Instructions to disable the touchscreen on Microsoft Surface Pro devices running Linux – useful when using a mouse/keyboard only. |
 
 ## 🔧 Quick Usage
 
+### Astra Linux: Third‑Party Repository Manager
+
 ```bash
-# Download the script
 wget https://raw.githubusercontent.com/tantry/astra-linux-scripts/main/third-party-manager.sh
-
-# Make it executable
 chmod +x third-party-manager.sh
-
-# Run it
 ./third-party-manager.sh
+```
+
+### Audio: FLAC+CUE to Tagged AAC
+
+```bash
+# Install dependencies (Debian/Ubuntu/Astra)
+sudo apt install shntool cuetools ffmpeg atomicparsley
+
+# Run the script in your album folder
+./cue2aac_atomic.sh
+```
+
+### Audio: Normalize Volume (`.m4a` files)
+
+```bash
+# One‑pass (simple)
+./normalize.sh
+
+# Two‑pass (more accurate for short tracks)
+./normalize_two_pass.sh
+
+# Remove the "normalized_" prefix after processing
+for f in normalized_*.m4a; do mv "$f" "${f#normalized_}"; done
+```
+
+### Surface Pro: Disable Touchscreen
+
+See `SurfacePro_fixes.md` for kernel command line parameters or udev rules.
+
+## ⚠️ Important Notes
+
+- **Astra Linux tools** are designed and tested on **Astra Linux Special Edition** with **local ISO repositories** (`file://`).  
+- The official `astra-update` tool does **not** work reliably with local ISOs – use standard `apt` commands instead.  
+- Always keep third‑party repository files outside `/etc/apt/sources.list.d/` unless actively using them (the script does this automatically).  
+- The `third-party-manager.sh` script includes built‑in safety checks that abort any installation that would remove critical Astra packages (`astra-*`, `fly-*`, `parsec`, etc.).  
+- Audio scripts are **distribution‑agnostic** – they work on any Linux with `ffmpeg`, `shntool`, `AtomicParsley`, etc.  
+- `normalize.sh` uses AAC encoding; for MP3 or FLAC adjust the output codec (see `normalize.md`).
+
+## 📄 Individual Documentation
+
+Each tool has its own markdown file with detailed usage, customisation, and troubleshooting:
+
+- [`cue2aac_atomic.md`](cue2aac_atomic.md)
+- [`normalize.md`](normalize.md)
+- [`SurfacePro_fixes.md`](SurfacePro_fixes.md)
+
+## 🤝 Contributing
+
+Feel free to open issues or pull requests for improvements, additional scripts, or translations.
+
+## 📜 License
+
+These scripts are provided as-is, without warranty. You may use, modify, and distribute them freely.
+```
+

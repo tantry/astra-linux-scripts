@@ -1,4 +1,3 @@
-```markdown
 # normalize.sh – Loudness Normalization for Audio Files
 
 Normalize the volume of audio files (`.m4a`, `.mp3`, `.flac`) to a consistent loudness level using FFmpeg’s EBU R128 loudnorm filter. This ensures that all tracks play back at a similar volume, without clipping or dynamic range compression.
@@ -120,4 +119,3 @@ This script is part of my `astra_linux_scripts` collection. See other tools for 
 ---
 
 **Enjoy consistent volume across your music library!**
-```

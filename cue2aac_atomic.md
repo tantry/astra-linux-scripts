@@ -1,6 +1,3 @@
-## `README.md`
-
-```markdown
 # cue2aac: Split FLAC+CUE to Tagged AAC Tracks
 
 Convert a single FLAC audio file (with a companion CUE sheet) into individual AAC (`.m4a`) tracks, with metadata and file names taken from the CUE sheet.
@@ -107,4 +104,3 @@ Feel free to use, modify, and distribute this script. No warranty.
 ## Repository
 
 This script is part of my collection of useful Linux tools. See [GitHub link] for more.
-```

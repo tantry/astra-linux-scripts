@@ -5,6 +5,7 @@
 # - Automatic cache population on first run
 # - Safety check before install/upgrade (detects removal of critical packages)
 # - Clear cache option
+# - Uses dist-upgrade (recommended) instead of upgrade
 
 # Colors
 RED='\033[0;31m'
@@ -27,7 +28,7 @@ safety_check() {
     if [[ "$action" == "install" ]]; then
         sudo apt install --dry-run "$pkg_name" > "$sim_log" 2>&1
     elif [[ "$action" == "upgrade-all" ]]; then
-        sudo apt upgrade --dry-run > "$sim_log" 2>&1
+        sudo apt dist-upgrade --dry-run > "$sim_log" 2>&1
     elif [[ "$action" == "upgrade-single" ]]; then
         sudo apt install --only-upgrade --dry-run "$pkg_name" > "$sim_log" 2>&1
     else
@@ -181,7 +182,7 @@ while true; do
             if [ $? -eq 0 ]; then
                 read -p "Proceed with upgrade? (y/n): " confirm
                 if [[ $confirm == "y" || $confirm == "Y" ]]; then
-                    sudo apt upgrade --only-upgrade -y
+                    sudo apt dist-upgrade -y
                     echo -e "${GREEN}✓ Update complete!${NC}"
                 else
                     echo -e "${YELLOW}Update cancelled${NC}"
